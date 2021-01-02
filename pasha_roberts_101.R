@@ -7,7 +7,7 @@
 library(dplyr)
 library(lubridate)
 
-#' show how to get from simple HR data to the full dataset
+# show how to get from simple HR data to the full dataset
 # this is all manual because it's a code example in the presentation
 demoETL <- function() {
   ## slide 1
@@ -348,4 +348,35 @@ plotSurvAUC <- function(roc.data) {
 # Generación de Datos --------------------
 
 churn <- genAttritionData()
-  
+
+# Se podría armar un dataset más grande cambiando el n adentro de la función. 
+# Por default, crea un dataframe de 400 filas.
+
+# Exploración de Datos -------------------
+library(funModeling)
+
+glimpse(churn)
+
+summary(churn)
+
+status(churn)
+
+
+# Cambiar los campos dttm a date
+
+churn <- churn %>% 
+  mutate(hire.date = as_date(floor_date(hire.date)),
+         term.date = as_date(floor_date(term.date)),
+         end.date = as_date(floor_date(end.date)))
+
+
+
+
+# Crear dataframes de training y de testing
+
+churn.train <- churn %>% 
+  filter(is.training == T)
+
+churn.test <- churn %>% 
+  filter(is.training == F)
+
