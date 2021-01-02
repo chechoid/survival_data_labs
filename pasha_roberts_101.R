@@ -354,6 +354,7 @@ churn <- genAttritionData()
 
 # Exploración de Datos -------------------
 library(funModeling)
+library(tidyr)
 
 glimpse(churn)
 
@@ -369,6 +370,24 @@ churn <- churn %>%
          term.date = as_date(floor_date(term.date)),
          end.date = as_date(floor_date(end.date)))
 
+
+churn2 <- churn %>% 
+  select(emp.id, hire.date, term.date, is.term) %>% 
+  mutate(term.date = replace_na(term.date,"2017-06-30"))
+
+term.col = c("#99A3A4", "#1733BD")
+
+ggplot(churn2) +
+  geom_segment(aes(x = hire.date, xend = term.date,
+               y = emp.id, yend = emp.id, 
+               colour = is.term),
+               size = 1) +
+  scale_color_manual(values = term.col) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1),
+        panel.background = element_blank()) +
+  scale_x_date(date_breaks = "1 month", date_labels = "%y %m") +
+  labs(title = "Tenure for leavers and not leavers",
+       subtitle = paste0("Average tenure: ", round(mean(churn$tenure.years),1),  " years"))
 
 
 
