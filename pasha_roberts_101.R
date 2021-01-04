@@ -370,7 +370,7 @@ churn <- churn %>%
          term.date = as_date(floor_date(term.date)),
          end.date = as_date(floor_date(end.date)))
 
-
+# Creo un nuevo dataframe para reemplazar los NA con 30/6/2017 para hacer un gráfico
 churn2 <- churn %>% 
   select(emp.id, hire.date, term.date, is.term) %>% 
   mutate(term.date = replace_na(term.date,"2017-06-30"))
@@ -390,6 +390,8 @@ ggplot(churn2) +
        subtitle = paste0("Average tenure: ", round(mean(churn$tenure.years),1),  " years"))
 
 
+# Análisis de supervivencia --------------------
+library(survival)
 
 # Crear dataframes de training y de testing
 
@@ -399,3 +401,36 @@ churn.train <- churn %>%
 churn.test <- churn %>% 
   filter(is.training == F)
 
+
+surv.obj <- Surv(churn.train$tenure.years, churn.train$is.term)
+
+surv.fit <- survfit(surv.obj ~ 1)
+summary(surv.fit)
+
+
+cox.model <- coxph(formula = surv.obj ~ scale.x + scale.y + scale.z,
+                             data = churn.train)
+
+cox.model
+
+
+cox.pred <- predict(cox.model, newdata = churn.test, type = "lp")
+
+cox.pred
+
+
+roc.obj <- survivalROC::survivalROC(Stime = churn.test$tenure.years,
+                                    status = churn.test$is.term,
+                                    marker = cox.pred,
+                                    predict.time = 1,
+                                    lambda = 0.003)
+roc.obj$AUC
+
+# Gráficos Curva ROC y de Supervivencia
+plotSurvAUC(roc.obj)
+plotSurvFit(surv.fit)
+
+
+# Replicando los test aleatoriamente mil veces
+test.repl <- replicate(1000, demoPrediction(verbose = FALSE))
+summary(test.repl)
