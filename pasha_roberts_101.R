@@ -407,6 +407,7 @@ surv.obj <- Surv(churn.train$tenure.years, churn.train$is.term)
 surv.fit <- survfit(surv.obj ~ 1)
 summary(surv.fit)
 
+?survfit
 
 cox.model <- coxph(formula = surv.obj ~ scale.x + scale.y + scale.z,
                              data = churn.train)
