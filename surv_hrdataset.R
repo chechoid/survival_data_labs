@@ -19,24 +19,32 @@ glimpse(hrdata)
 
 status(hrdata)
 
-names(hrdata)
-
 summary(hrdata)
 
+variables <- names(hrdata)
+sort(variables)
+
+# Elimino variables redundantes (ID, por ej.) o innecesarias para el análisis
+hrdata1 <- hrdata %>% 
+  select(EmpID, Employee_Name, DateofHire, DateofTermination, Position, DOB, 
+         EmploymentStatus, EmpSatisfaction, EngagementSurvey, ManagerID, 
+         MaritalDesc, PayRate, PerformanceScore, RecruitmentSource, Sex, 
+         SpecialProjectsCount, Termd, TermReason, DaysLateLast30)
+
 # Cambiar los campos de fecha de chr a date
-hrdata <- hrdata %>% 
+hrdata1 <- hrdata1 %>% 
   mutate(DOB = mdy(DOB),
          DateofHire = mdy(DateofHire),
          DateofTermination = mdy(DateofTermination),
          edad = as.period(interval(start = DOB, end = "2017-06-30"))$year,
          antiguedad = as.period(interval(start = DateofHire, end = "2017-06-30"))$year)
 
-summary(hrdata)
+summary(hrdata1)
 
 
 # Primer modelo -------------------------
 
-hr1 <- hrdata %>% 
+hr1 <- hrdata1 %>% 
   select(EmpID, edad, DateofHire, DateofTermination, antiguedad, 
          PayRate, EmpSatisfaction, EngagementSurvey, SpecialProjectsCount) %>% 
   mutate(target = if_else(is.na(DateofTermination), 0, 1),
@@ -96,4 +104,6 @@ roc.obj$AUC
 
 # Gráficos Curva ROC y de Supervivencia
 plotSurvAUC(roc.obj)
-plotSurvFit(surv.fit)
+plotSurvFit(surv.fit) + 
+  ggtitle("Análisis de Supervivencia")
+

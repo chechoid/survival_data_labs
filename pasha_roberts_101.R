@@ -286,8 +286,8 @@ plotSurvFit <- function(surv.data) {
                        ggplot2::aes(x = time, y = surv, col = strata))
   p <- p + ggplot2::geom_step(size = 1)
   
-  p <- p + ggplot2::scale_x_continuous(name = "Years Tenure")
-  p <- p + ggplot2::scale_y_continuous(name = "Probability of Survival",
+  p <- p + ggplot2::scale_x_continuous(name = "Antigüedad en años")
+  p <- p + ggplot2::scale_y_continuous(name = "Probabilidad de Supervivencia",
                                        breaks = seq(0, 1, 0.2),
                                        limits = c(0, 1),
                                        labels = scales::percent)
