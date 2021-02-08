@@ -29,9 +29,9 @@ sort(variables)
 # Elimino variables redundantes 
 hrdata1 <- hrdata %>% 
   select(EmpID, Employee_Name, DateofHire, Department, DateofTermination, Position, DOB, 
-         EmploymentStatus, EmpSatisfaction, EngagementSurvey, ManagerName, 
-         MaritalDesc, PayRate, PerformanceScore, RecruitmentSource, Sex, 
-         SpecialProjectsCount, TermReason, DaysLateLast30, Termd)
+         EmpSatisfaction, EngagementSurvey, ManagerName, 
+         MaritalDesc, PayRate, PerformanceScore, Sex, 
+         SpecialProjectsCount, DaysLateLast30, Termd)
 
 # Cambiar los campos de fecha de chr a date
 hrdata1 <- hrdata1 %>% 
@@ -52,6 +52,9 @@ profiling_num(hrdata1)
 
 DataExplorer::create_report(hrdata1, y = "Termd")
 
+# La variable DaysLateLast30 tiene muchos nulos, por lo tanto la eliminamos.
+# La variable target es Termd así que la renombramos para facilitar el código.
+# Eliminamos espacios de la columna Department que ensuciaban el nombre de algunas áreas.
 hrdata1 <- hrdata1 %>% 
   select(-DaysLateLast30) %>% 
   rename(target = Termd) %>% 
@@ -69,7 +72,7 @@ hrdata1 %>%
   geom_col() +
   geom_text(aes(label=cantidad,
                 vjust=-0.2)) +
-  labs(title = "Empleados por Departamento",
+  labs(title = "Empleados Activos por Departamento",
        x = "", y = "") +
   scale_x_discrete(guide = guide_axis(n.dodge = 2))
 
@@ -95,28 +98,38 @@ hrdata1 <- hrdata1 %>%
 
 hires <- hrdata1 %>%  
   filter(Department == "Production") %>% 
-  group_by(year = year_hire, Position) %>% 
-  summarise(ingresos = n()) 
+  mutate(Year = year(DateofHire),
+        Count = 1) %>% 
+  group_by(Year) %>% 
+  summarise(Hires = sum(Count)) %>% 
+  filter(between(Year, 2010, 2016))
   
 terms <- hrdata1 %>% 
-  filter(!is.na(year_term), Department == "Production") %>% 
-  group_by(year = year_term, Position) %>% 
-  summarise(egresos = n()) 
+  filter(!is.na(DateofTermination), Department == "Production") %>% 
+  mutate(Year = year(DateofTermination),
+         Count = 1) %>% 
+  group_by(Year) %>% 
+  summarise(Terminations = sum(Count))
 
 summary(hires)
 summary(terms)
 
 
-turnover <- rbind(hires, terms) %>% arrange(year)
+turnover <- hires %>% 
+  left_join(terms, by = "Year")
+
+turnover
 
 turnover <- turnover %>% 
-  pivot_longer(cols = c(ingresos, egresos), names_to = "movimiento", 
-               values_to = "cantidad") %>% 
-  mutate(cantidad = replace_na(cantidad, replace = 0))
+  pivot_longer(cols= c("Hires", "Terminations"), # Variables a combinar 
+               names_to = "Movimientos",  # Nombre de la nueva variable combinada
+               values_to = "Cantidades") 
 
-ggplot(turnover, aes(x = year, y = cantidad, color = movimiento)) +
+ggplot(turnover, aes(x = Year, y = Cantidades, color = Movimientos)) +
   geom_line() +
-  facet_wrap(~Position, scales = "free_y")
+  labs(title = "Ingresos y Egresos por Año",
+       subtitle = "Departamento de Producción",
+       x = "", y = "")
 
 
 # Primer modelo -------------------------
@@ -183,4 +196,64 @@ roc.obj$AUC
 plotSurvAUC(roc.obj)
 plotSurvFit(surv.fit) + 
   ggtitle("Análisis de Supervivencia")
+
+# Segundo modelo ---------
+# Fuente: Introductory Statistics With R - Capítulo 14.
+
+# Análisis sector Producción
+produccion <- hrdata1 %>% 
+  filter(Department == "Production") %>% 
+  select(EmpID, edad, DateofHire, DateofTermination, antiguedad, 
+         PayRate, EmpSatisfaction, EngagementSurvey, SpecialProjectsCount, target)
+
+# Creo un índice del 70% de los datos aleatoriamente
+set.seed(203)
+
+prod_model <- createDataPartition(y = produccion$target, p = 0.7,
+                                list = FALSE)
+
+# Divido el dataset en training y testing
+prod_train <- produccion[prod_model,]
+prod_test <- produccion[-prod_model,]
+
+
+# Controlo que las proporciones de las bajas estén balanceadas
+produccion %>% 
+  summarise(turnover = mean(target),
+            desvio = sd(target))
+
+prod_train %>% 
+  summarise(turnover = mean(target))
+
+prod_test %>% 
+  summarise(turnover = mean(target))
+
+
+surv.obj2 <- Surv(prod_train$antiguedad, prod_train$target)
+
+surv.fit2 <- survfit(surv.obj2 ~ 1)
+summary(surv.fit2)
+
+cox.model2 <- coxph(formula = surv.obj2 ~ edad + PayRate + EmpSatisfaction + EngagementSurvey, 
+                   data = prod_train)
+
+cox.model2
+
+
+cox.pred2 <- predict(cox.model2, newdata = prod_test, type = "lp")
+
+cox.pred2
+
+
+roc.obj2 <- survivalROC::survivalROC(Stime = prod_test$antiguedad,
+                                    status = prod_test$target,
+                                    marker = cox.pred2,
+                                    predict.time = 1,
+                                    lambda = 0.003)
+roc.obj2$AUC
+
+# Gráficos Curva ROC y de Supervivencia
+plotSurvAUC(roc.obj2)
+plotSurvFit(surv.fit) + 
+  ggtitle("Análisis de Supervivencia - Producción")
 

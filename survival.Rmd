@@ -1,0 +1,23 @@
+---
+title: "Análisis de Supervivencia"
+subtitle: "Data Labs"
+author: "Grupo: Recursos Inhumanos"
+date: "8/2/2021"
+output: 
+  html_document:
+    theme: spacelab
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Conceptos importantes
+
+**Tiempo censurado:** Como es imposible conocer el tiempo de vida de algo, sólo que es mayor que un momento determinado. Es probable que una persona tenga una sobrevida mayor al tiempo que dure un estudio o investigación.
+
+**Eventos censuradores:** En análisis médicos, se puede decir que hay *eventos que son censuradores* (censuring events) como por ejemplo, la "muerte por otras causas". En el dominio de la rotación de personal, podemos estar hablando por ejemplo de cuando registramos bajas cuando se cierra o se vende una división de una empresa.
+
+**Función de supervivencia:** La función de supervivencia $S(t)$ mide la probabilidad de sobrevivir (permanecer en la empresa) en un tiempo dado. Se calcula restando a 1 la distribución acumulada de X, $1 - F(t)$.
+
+**Función de Hazard:** La función de hazard o *fuerza de mortalidad* $h(t)$ mide el riesgo infinitesimal de morir en un período corto de tiempo $t$, dado que el sujeto está vivo en el momento $t$. Si la distribución del tiempo de vida tiene densidad $f$, entonces $h(t) = f(t)/S(t)$. A este valor se lo considera como una cantidad más fundamental que por ejemplo, la distribución promedio de supervivencia, y es utilizada como una base para los modelos.
