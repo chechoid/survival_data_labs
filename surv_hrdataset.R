@@ -8,6 +8,7 @@ library(survivalROC)
 library(lubridate)
 library(caret)
 library(DataExplorer)
+library(peopleanalyticsdata)
 
 # Datos --------------------------------------
 
