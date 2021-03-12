@@ -51,6 +51,7 @@ freq(hrdata1)
 
 profiling_num(hrdata1)
 
+
 DataExplorer::create_report(hrdata1, y = "Termd")
 
 # La variable DaysLateLast30 tiene muchos nulos, por lo tanto la eliminamos.
@@ -59,11 +60,12 @@ DataExplorer::create_report(hrdata1, y = "Termd")
 hrdata1 <- hrdata1 %>% 
   select(-DaysLateLast30) %>% 
   rename(target = Termd) %>% 
-  mutate(Department = str_trim(Department, side = "both"))
+  mutate(Department = str_trim(Department, side = "both"),
+         Position = str_trim(Position, side = "both"))
 
 status(hrdata1)
 
-
+# Gráfico de empleados activos por departamento
 hrdata1 %>% 
   filter(!is.na(DateofTermination)) %>% 
   group_by(Department) %>% 
@@ -78,6 +80,7 @@ hrdata1 %>%
   scale_x_discrete(guide = guide_axis(n.dodge = 2))
 
 
+# Calculo las tasas de rotación por área
 hrdata1 %>% 
   group_by(Department) %>% 
   summarise(turnover_rate = mean(target),
@@ -92,6 +95,7 @@ hrdata1 %>%
 
 # Analizar la evolución de las bajas y altas.
 hrdata1 <- hrdata1 %>% 
+  filter(Position != "Director of Operations") %>% # Elimino esta posición
   mutate(year_hire = year(floor_date(DateofHire)),
          year_term = year(floor_date(DateofTermination)))
 
@@ -127,22 +131,51 @@ turnover <- turnover %>%
                values_to = "Cantidades") 
 
 ggplot(turnover, aes(x = Year, y = Cantidades, color = Movimientos)) +
-  geom_line() +
+  geom_line(size = 1) +
   labs(title = "Ingresos y Egresos por Año",
        subtitle = "Departamento de Producción",
-       x = "", y = "")
-
+       x = "", y = "") +
+  theme_minimal()
 
 # Primer modelo -------------------------
 
+# Exploramos el dataset filtrado por Production
+hrdata1 %>% 
+  filter(Department == "Production") %>% 
+  status()
+
+
+importancia_variables <- var_rank_info(hrdata1, "target") 
+
+ggplot(importancia_variables, 
+       aes(x = reorder(var, gr), 
+           y = gr, fill = var)) + 
+  geom_bar(stat = "identity") + 
+  coord_flip() + 
+  theme_bw() + 
+  xlab("") + 
+  ylab("Variable Importance (based on Information Gain)")
+
+
+
 hr1 <- hrdata1 %>% 
+  filter(Department == "Production",
+         Position != "Director of Operations") %>% 
   select(EmpID, edad, DateofHire, DateofTermination, antiguedad, 
-         PayRate, EmpSatisfaction, EngagementSurvey, SpecialProjectsCount) %>% 
+         PayRate, EmpSatisfaction, EngagementSurvey, SpecialProjectsCount,
+         Position, MaritalDesc, PerformanceScore) %>% 
   mutate(target = if_else(is.na(DateofTermination), 0, 1),
          conteo = 1)
 
+# Pasar las variables categóricas a dummys
+hr2 <- fastDummies::dummy_cols(hr1)
 
-hr1 %>% 
+glimpse(hr2)
+
+hr2 <- hr2 %>% 
+  select(-Position, -PerformanceScore, -MaritalDesc)
+
+hr2 %>% 
   group_by(target) %>% 
   summarise(bajas_promedio = sum(conteo))
 
@@ -150,44 +183,44 @@ hr1 %>%
 # Creo un índice del 70% de los datos aleatoriamente
 set.seed(45)
 
-hr_model <- createDataPartition(y = hr1$target, p = 0.7,
+hr_model <- createDataPartition(y = hr2$target, p = 0.7,
                                  list = FALSE)
 
 # Divido el dataset en training y testing
-hr1_train <- hr1[hr_model,]
-hr1_test <- hr1[-hr_model,]
+hr_train <- hr2[hr_model,]
+hr_test <- hr2[-hr_model,]
 
 
 # Controlo que las proporciones de las bajas estén balanceadas
-hr1 %>% 
+hr2 %>% 
   summarise(turnover = mean(target),
             desvio = sd(target))
 
-hr1_train %>% 
+hr_train %>% 
   summarise(turnover = mean(target))
 
-hr1_test %>% 
+hr_test %>% 
   summarise(turnover = mean(target))
 
 
-surv.obj <- Surv(hr1_train$antiguedad, hr1_train$target)
+surv.obj <- Surv(hr_train$antiguedad, hr_train$target)
 
 surv.fit <- survfit(surv.obj ~ 1)
 summary(surv.fit)
 
-cox.model <- coxph(formula = surv.obj ~ edad + PayRate + EmpSatisfaction + EngagementSurvey + SpecialProjectsCount,
-                   data = hr1_train)
+cox.model <- coxph(formula = surv.obj ~ . - EmpID,
+                   data = hr_train)
 
 cox.model
 
 
-cox.pred <- predict(cox.model, newdata = hr1_test, type = "lp")
+cox.pred <- predict(cox.model, newdata = hr_test, type = "lp")
 
 cox.pred
 
 
-roc.obj <- survivalROC::survivalROC(Stime = hr1_test$antiguedad,
-                                    status = hr1_test$target,
+roc.obj <- survivalROC::survivalROC(Stime = hr_test$antiguedad,
+                                    status = hr_test$target,
                                     marker = cox.pred,
                                     predict.time = 1,
                                     lambda = 0.003)
@@ -197,64 +230,4 @@ roc.obj$AUC
 plotSurvAUC(roc.obj)
 plotSurvFit(surv.fit) + 
   ggtitle("Análisis de Supervivencia")
-
-# Segundo modelo ---------
-# Fuente: Introductory Statistics With R - Capítulo 14.
-
-# Análisis sector Producción
-produccion <- hrdata1 %>% 
-  filter(Department == "Production") %>% 
-  select(EmpID, edad, DateofHire, DateofTermination, antiguedad, 
-         PayRate, EmpSatisfaction, EngagementSurvey, SpecialProjectsCount, target)
-
-# Creo un índice del 70% de los datos aleatoriamente
-set.seed(203)
-
-prod_model <- createDataPartition(y = produccion$target, p = 0.7,
-                                list = FALSE)
-
-# Divido el dataset en training y testing
-prod_train <- produccion[prod_model,]
-prod_test <- produccion[-prod_model,]
-
-
-# Controlo que las proporciones de las bajas estén balanceadas
-produccion %>% 
-  summarise(turnover = mean(target),
-            desvio = sd(target))
-
-prod_train %>% 
-  summarise(turnover = mean(target))
-
-prod_test %>% 
-  summarise(turnover = mean(target))
-
-
-surv.obj2 <- Surv(prod_train$antiguedad, prod_train$target)
-
-surv.fit2 <- survfit(surv.obj2 ~ 1)
-summary(surv.fit2)
-
-cox.model2 <- coxph(formula = surv.obj2 ~ edad + PayRate + EmpSatisfaction + EngagementSurvey, 
-                   data = prod_train)
-
-cox.model2
-
-
-cox.pred2 <- predict(cox.model2, newdata = prod_test, type = "lp")
-
-cox.pred2
-
-
-roc.obj2 <- survivalROC::survivalROC(Stime = prod_test$antiguedad,
-                                    status = prod_test$target,
-                                    marker = cox.pred2,
-                                    predict.time = 1,
-                                    lambda = 0.003)
-roc.obj2$AUC
-
-# Gráficos Curva ROC y de Supervivencia
-plotSurvAUC(roc.obj2)
-plotSurvFit(surv.fit) + 
-  ggtitle("Análisis de Supervivencia - Producción")
 
