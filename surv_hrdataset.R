@@ -13,6 +13,7 @@ library(peopleanalyticsdata)
 # Datos --------------------------------------
 
 hrdata <- read_delim("HRDataset_v13.csv", delim = ";")
+hrjob <- peopleanalyticsdata::job_retention
 
 # Análisis exploratorio ----------------------
 
@@ -58,7 +59,6 @@ DataExplorer::create_report(hrdata1, y = "Termd")
 # La variable target es Termd así que la renombramos para facilitar el código.
 # Eliminamos espacios de la columna Department que ensuciaban el nombre de algunas áreas.
 hrdata1 <- hrdata1 %>% 
-  select(-DaysLateLast30) %>% 
   rename(target = Termd) %>% 
   mutate(Department = str_trim(Department, side = "both"),
          Position = str_trim(Position, side = "both"))
