@@ -355,6 +355,7 @@ churn <- genAttritionData()
 # Exploración de Datos -------------------
 library(funModeling)
 library(tidyr)
+library(tidyverse)
 
 glimpse(churn)
 
@@ -372,7 +373,7 @@ churn <- churn %>%
 
 # Creo un nuevo dataframe para reemplazar los NA con 30/6/2017 para hacer un gráfico
 churn2 <- churn %>% 
-  select(emp.id, hire.date, term.date, is.term) %>% 
+  dplyr::select(emp.id, hire.date, term.date, is.term) %>% 
   mutate(term.date = replace_na(term.date,"2017-06-30"))
 
 term.col = c("#99A3A4", "#1733BD")
@@ -409,18 +410,20 @@ summary(surv.fit)
 
 ?survfit
 
-cox.model <- coxph(formula = surv.obj ~ scale.x + scale.y + scale.z,
+cox.model <- coxph(formula = surv.obj ~ scale.x + scale.y,
                              data = churn.train)
 
 cox.model
 
 
-cox.pred <- predict(cox.model, newdata = churn.test, type = "lp")
+cox.pred <- predict(cox.model, 
+                    newdata = churn.test, 
+                    type = "lp")
 
 cox.pred
+hist(cox.pred)
 
-
-roc.obj <- survivalROC::survivalROC(Stime = churn.test$tenure.years,
+roc.obj <- survivalROC::survivalROC(Stime = churn.test$tenure.years,                                  ,
                                     status = churn.test$is.term,
                                     marker = cox.pred,
                                     predict.time = 1,
@@ -435,3 +438,5 @@ plotSurvFit(surv.fit)
 # Replicando los test aleatoriamente mil veces
 test.repl <- replicate(1000, demoPrediction(verbose = FALSE))
 summary(test.repl)
+
+

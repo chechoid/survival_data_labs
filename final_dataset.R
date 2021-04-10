@@ -1,122 +1,41 @@
-library(tidverse)
+library(tidyverse)
 library(survival)
 
 
-hrjob <- read_delim("https://raw.githubusercontent.com/mlambolla/Analytics_HR_Attrition/master/HR_comma_sep.csv",
+rh <- read_delim("https://raw.githubusercontent.com/mlambolla/Analytics_HR_Attrition/master/HR_comma_sep.csv",
                  delim = ",")
-
-
-retention <- Surv(event = rh$left,
-            time = rh$time_spend_company)
-class(rhs)
-
-unique(rhs)
 
 # Análisis exploratorio ----------------------
 
-head(hrjob)
-str(hrjob)
+head(rh)
+str(rh)
+
+# Visualizar la cantidad de bajas en el dataset
+rh %>% 
+  group_by(left) %>% 
+  summarise(cantidad = n()) %>% 
+  mutate(proporcion = cantidad/sum(cantidad))
 
 
+# Análisis de Supervivencia ----------------
 
+# Creación del objeto Surv 
+retention <- Surv(event = rh$left,
+                  time = rh$time_spend_company)
 
 class(retention)
 
-# view unique values of retention
+# Ver los valores únicos del objeto 'retention'
 unique(retention)
 
 
-# kaplan-meier estimates of survival by gender
-kmestimate_gender <- survfit(
-  formula = Surv(event = left, time = time_spend_company) ~ salary, 
-  data = hrjob
-)
-
-summary(kmestimate_gender)
-
-# create a new field to define high sentiment (>= 7)
-hrjob$sentiment_category <- ifelse(
-  hrjob$satisfaction_level >= .7, 
-  "High", 
-  "Not High"
-)
-
-# generate survival rates by sentiment category
-kmestimate_sentimentcat <- survfit(
-  formula = Surv(event = left, time = time_spend_company) ~ sentiment_category,
-  data = hrjob
-)
-
-summary(kmestimate_sentimentcat)
 
 
 
-library(survminer)
-
-# show survival curves with p-value estimate and confidence intervals
-survminer::ggsurvplot(
-  kmestimate_sentimentcat,
-  pval = TRUE,
-  conf.int = TRUE,
-  palette = c("blue", "red"),
-  linetype = c("solid", "dashed"),
-  xlab = "Year",
-  ylab = "Retention Rate"
-)
-
-# create a new field to define high performance (>= 7)
-hrjob$performance_category <- ifelse(
-  hrjob$last_evaluation >= .7, 
-  "High", 
-  "Not High"
-)
-
-# generate survival rates by sentiment category
-kmestimate_perfcat <- survfit(
-  formula = Surv(event = left, time = time_spend_company) ~ performance_category,
-  data = hrjob
-)
-
-summary(kmestimate_perfcat)
-
-
-# show survival curves with p-value estimate and confidence intervals
-survminer::ggsurvplot(
-  kmestimate_perfcat,
-  pval = TRUE,
-  conf.int = TRUE,
-  palette = c("blue", "red"),
-  linetype = c("solid", "dashed"),
-  xlab = "Year",
-  ylab = "Retention Rate"
-)
-
-# Salary -------
-kmestimate_salary <- survfit(
-  formula = Surv(event = left, 
-                 time = time_spend_company) ~ salary,
-  data = hrjob
-)
-
-summary(kmestimate_salary)
-
-
-# show survival curves with p-value estimate and confidence intervals
-survminer::ggsurvplot(
-  kmestimate_salary,
-#  pval = TRUE,
-#  conf.int = TRUE,
-#  palette = c("blue", "red", "black"),
-#  linetype = c("solid", "dashed"),
-  xlab = "Year",
-  ylab = "Retention Rate"
-)
-
-
-# run cox model against survival outcome ----
+# Seleccionamos las variables del modelo con la regresión de Cox ----
 cox_model <- survival::coxph(
   formula = Surv(event = left, time = time_spend_company) ~ .,
-  data = hrjob
+  data = rh
 )
 
 summary(cox_model)
@@ -129,26 +48,147 @@ survminer::ggcoxzph(ph_check,
                     font.y = 10)
 
 
-library(frailtypack)
-
-(frailty_model <- frailtypack::frailtyPenal(
-  formula = Surv(event = left, time = time_spend_company) ~ satisfaction_level + 
-    last_evaluation + number_project + salary,
-  data = hrjob,
-  n.knots = 12, 
-  kappa = 10000
-))
 
 
-stratified_base <- frailtypack::frailtyPenal(
-  formula = Surv(event = left, time = time_spend_company) ~ 
-    strata(sentiment_category),
-  data = hrjob,
-  n.knots = 12,
-  kappa = rep(10000, 2)
+# Función de Supervivencia ---------------
+
+# Estimación de supervivencia con Kaplan-Meier
+# Supervivencia en función del salario
+kmestimate_salary <- survfit(
+  formula = Surv(event = left, 
+                 time = time_spend_company) ~ salary,
+  data = rh
 )
 
-plot(stratified_base, type.plot = "Survival", 
-     pos.legend = "topright", Xlab = "Year",
-     Ylab = "Baseline retention rate",
-     color = 1)
+summary(kmestimate_salary)
+
+
+# Gráfico de supervivencia
+survminer::ggsurvplot(
+  kmestimate_salary,
+  #  pval = TRUE,
+  #  conf.int = TRUE,
+  palette = c("#4B0D9E", "#AAC039", "#EAB30B"),
+  xlab = "Año",
+  ylab = "Tasa de Retención"
+) + ggtitle("Curva de Supervivencia según Nivel Salarial")
+
+
+# Creamos una variable nueva para identificar el nivel de satisfacción alto
+# cuando satisfaction_level >= 0.7
+
+rh$sentiment_category <- ifelse(
+  rh$satisfaction_level >= .7, 
+  "Alto", 
+  "No Alto"
+)
+
+# Estimamos la función de supervivencia con la variable categórica
+kmestimate_sentimentcat <- survfit(
+  formula = Surv(event = left, time = time_spend_company) ~ sentiment_category,
+  data = rh
+)
+
+summary(kmestimate_sentimentcat)
+
+
+
+library(survminer)
+
+# Gráfico de supervivencia según la categoría de satisfacción
+survminer::ggsurvplot(
+  kmestimate_sentimentcat,
+  pval = TRUE,
+  conf.int = TRUE,
+  palette = c("#4B0D9E", "#AAC039"),
+  xlab = "Año",
+  ylab = "Tasa de Retención"
+) + ggtitle("Curva de Supervivencia según Nivel de Satisfacción")
+
+
+# Desempeño
+# Creamos una variable categórica del nivel de desempeño
+rh$performance_category <- ifelse(
+  rh$last_evaluation >= .7, 
+  "Alto", 
+  "No Alto"
+)
+
+# Calculamos la función de supervivencia
+kmestimate_perfcat <- survfit(
+  formula = Surv(event = left, time = time_spend_company) ~ performance_category,
+  data = rh
+)
+
+summary(kmestimate_perfcat)
+
+
+# Gráfico de supervivencia
+survminer::ggsurvplot(
+  kmestimate_perfcat,
+  pval = TRUE,
+  conf.int = TRUE,
+  palette = c("#4B0D9E", "#AAC039"),
+  xlab = "Año",
+  ylab = "Tasa de Retención"
+  ) + ggtitle("Curva de Supervivencia según Nivel de Desempeño")
+
+
+
+# Análisis predictivo ---------------
+
+library(caret)
+
+
+rh_mod <- rh %>% 
+  select(sentiment_category, salary, left, time_spend_company)
+  
+set.seed(234)
+
+modelo_hr <- createDataPartition(y = rh_mod$left, p = 0.7,
+                                 list = FALSE)
+
+#Armo el dataframe de training [fila, columna]
+modelo_hr_train <- rh_mod[modelo_hr,]
+
+# Con el signo - (menos), creamos el dataset de testing, con todas las filas 'que no estén en modelo_hr'
+modelo_hr_test <- rh_mod[-modelo_hr,]
+
+surv.obj <- Surv(time = modelo_hr_train$time_spend_company, 
+                 event = modelo_hr_train$left)
+
+surv.fit <- survfit(surv.obj ~ 1)
+summary(surv.fit)
+
+
+cox.model <- coxph(formula = surv.obj ~ sentiment_category + salary,
+                   data = modelo_hr_train)
+
+cox.model
+
+cox.pred <- predict(cox.model, 
+                    newdata = modelo_hr_test, 
+                    type = "lp")
+
+cox.pred
+hist(cox.pred)
+
+roc.obj_dl <- survivalROC::survivalROC(Stime = rh_mod$time_spend_company,
+                                    status = rh_mod$left,
+                                    marker = cox.pred,
+                                    predict.time = 5,
+                                    lambda = 0.003)
+
+?survivalROC
+roc.objdl$AUC
+
+# Gráficos Curva ROC y de Supervivencia
+plotSurvAUC(roc.objdl)
+plotSurvFit(surv.fit)
+
+
+# Replicando los test aleatoriamente mil veces
+test.repl <- replicate(1000, demoPrediction(verbose = FALSE))
+summary(test.repl)
+
+
